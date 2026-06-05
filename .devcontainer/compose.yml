@@ -1,0 +1,15 @@
+services:
+  chat:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    ports:
+      - "8888:8888"
+    restart: always
+    platform: linux/amd64
+    environment:
+      - CCACHE_DIR=/ccache
+      - CCACHE_MAXSIZE=10G
+
+volumes:
+  ccache-ydbc:
