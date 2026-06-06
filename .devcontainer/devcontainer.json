@@ -7,12 +7,13 @@
     ],
     "features": {
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-            "packages": "build-essential,cmake,libssl-dev,clangd-18,gdb"
+            "packages": "build-essential,cmake,libssl-dev,libboost-all-dev,clangd-18,gdb"
         },
         "ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
             "plugins": "ssh-agent zsh-autosuggestions"
         }
     },
+    "forwardPorts": [8888],
     "customizations": {
         "vscode": {
             "extensions": [

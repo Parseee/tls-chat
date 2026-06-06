@@ -27,19 +27,19 @@ class ChatServer;
 
 class Connection : public std::enable_shared_from_this<Connection> {
 public:
-  Connection(tcp::socket &&socket, ssl::context &ssl_ctx, ChatServer &server)
-      : ws_(std::move(socket), ssl_ctx), server_(server) {}
-  void run();
+  Connection(ssl::stream<tcp::socket> ws_stream, ChatServer &server)
+      : ws_(std::move(ws_stream)), server_(server) {}
+  void run(http::request<http::string_body> req);
   void send(std::shared_ptr<std::string> msg_ptr) {
     write_queue_.push(msg_ptr);
 
     if (write_queue_.size() == 1) {
+      ws_.text(true);
       do_write();
     }
   }
 
 private:
-  void do_ws_accept();
   void do_read();
   void do_write();
 
@@ -85,26 +85,83 @@ private:
   class HttpDetector : public std::enable_shared_from_this<HttpDetector> {
   public:
     HttpDetector(tcp::socket socket, ssl::context &ctx, ChatServer &server)
-        : socket_(std::move(socket)), ctx_(ctx), server_(server) {}
+        : stream_(std::move(socket), ctx), server_(server) {}
 
     void run() {
       auto self = shared_from_this();
-      do_read();
+      stream_.async_handshake(ssl::stream_base::server,
+                              [this, self](boost::beast::error_code err) {
+                                if (!err) {
+                                  do_read();
+                                }
+                              });
     }
 
   private:
     void do_read() {
-      auto session =
-          std::make_shared<Connection>(std::move(socket_), ctx_, server_);
-      server_.join(session);
-
-      session->run();
+      auto self = shared_from_this();
+      http::async_read(
+          stream_, buffer_, req_,
+          [this, self](boost::beast::error_code err, std::size_t) {
+            if (err) {
+              return;
+            }
+            if (websocket::is_upgrade(req_) && req_.target() == "/ws") {
+              auto session =
+                  std::make_shared<Connection>(std::move(stream_), server_);
+              server_.join(session);
+              session->run(std::move(req_));
+            } else if (req_.target() == "/") {
+              send_index();
+            } else {
+              send_not_found();
+            }
+          });
     }
 
-    tcp::socket socket_;
-    ssl::context &ctx_;
+    void send_index() {
+      auto self = shared_from_this();
+      auto res = std::make_shared<http::response<http::file_body>>();
+      res->version(req_.version());
+      res->result(http::status::ok);
+      res->set(http::field::server, "tls-chat");
+      res->set(http::field::content_type, "text/html; charset=utf-8");
+
+      boost::beast::error_code err;
+      res->body().open("static/index.html", boost::beast::file_mode::scan, err);
+      if (err) {
+        send_not_found();
+        return;
+      }
+      res->prepare_payload();
+
+      http::async_write(
+          stream_, *res,
+          [this, self, res](boost::beast::error_code err, std::size_t) {
+            stream_.async_shutdown([self](boost::beast::error_code) {});
+          });
+    }
+
+    void send_not_found() {
+      auto self = shared_from_this();
+      auto res = std::make_shared<http::response<http::string_body>>(
+          http::status::not_found, req_.version());
+      res->set(http::field::server, "tls-chat");
+      res->set(http::field::content_type, "text/plain");
+      res->body() = "Not found";
+      res->prepare_payload();
+
+      http::async_write(
+          stream_, *res,
+          [this, self, res](boost::beast::error_code err, std::size_t) {
+            stream_.async_shutdown([self](boost::beast::error_code) {});
+          });
+    }
+
+    ssl::stream<tcp::socket> stream_;
     ChatServer &server_;
     boost::beast::flat_buffer buffer_;
+    http::request<http::string_body> req_;
   };
 
   asio::io_context &ioctx_;
@@ -113,26 +170,14 @@ private:
   std::set<std::shared_ptr<Connection>> registry_;
 };
 
-void Connection::run() {
+void Connection::run(http::request<http::string_body> req) {
   auto self = shared_from_this();
-  ws_.next_layer().async_handshake(
-      ssl::stream_base::server, [this, self](boost::beast::error_code err) {
-        if (!err) {
-          do_ws_accept();
-        } else {
-          std::cerr << "TLS Handshake failed: " << err.message() << std::endl;
-          server_.leave(shared_from_this());
-        }
-      });
-}
-
-void Connection::do_ws_accept() {
-  auto self = shared_from_this();
-  ws_.async_accept([this, self](boost::beast::error_code err) {
+  ws_.async_accept(req, [this, self](boost::beast::error_code err) {
     if (!err) {
       do_read();
     } else {
       std::cerr << "wc_accept error: " << err.message() << std::endl;
+      server_.leave(shared_from_this());
     }
   });
 }

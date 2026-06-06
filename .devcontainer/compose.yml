@@ -5,6 +5,7 @@ services:
       dockerfile: .devcontainer/Dockerfile
     ports:
       - "8888:8888"
+      - "8000:8000"
     restart: always
     platform: linux/amd64
     environment:

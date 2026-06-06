@@ -2,8 +2,9 @@ FROM ubuntu:24.04 AS builder
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
-    libboost-asio-dev \
+    libboost-all-dev \
     libssl-dev \
+    openssl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -15,9 +16,12 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY --from=builder /build/build/tls_server .
-COPY cert.pem key.pem ./
+WORKDIR /workspaces/tls-chat
+COPY --from=builder /build/build/tls-chat .
+COPY static ./static/
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8888
-CMD ["./tls_server"]
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["./tls-chat"]
