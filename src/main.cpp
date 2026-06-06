@@ -29,7 +29,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 public:
   Connection(tcp::socket &&socket, ssl::context &ssl_ctx, ChatServer &server)
       : ws_(std::move(socket), ssl_ctx), server_(server) {}
-  void run(http::request<http::string_body> req);
+  void run();
   void send(std::shared_ptr<std::string> msg_ptr) {
     write_queue_.push(msg_ptr);
 
@@ -39,8 +39,7 @@ public:
   }
 
 private:
-  void do_handshake(http::request<http::string_body> req);
-  void do_ws_accept(http::request<http::string_body> req);
+  void do_ws_accept();
   void do_read();
   void do_write();
 
@@ -62,11 +61,13 @@ public:
   void leave(std::shared_ptr<Connection> session) { registry_.erase(session); }
 
   void broadcast(const std::string &msg, std::shared_ptr<Connection> conn) {
-    auto conn_it = registry_.find(conn);
-    if (conn_it == registry_.end()) {
-      return; // TODO: or throw an error?
+    auto msg_ptr = std::make_shared<std::string>(std::move(msg));
+
+    for (auto const &session : registry_) {
+      if (session != conn) {
+        session->send(msg_ptr);
+      }
     }
-    (*conn_it)->send(std::make_shared<std::string>(std::move(msg)));
   }
 
 private:
@@ -88,24 +89,16 @@ private:
 
     void run() {
       auto self = shared_from_this();
-      // Read standard HTTP stream first before wrapping in encryption layer to
-      // identify target protocols For production stability, wrapper goes
-      // immediately. Simulating directly inside active state.
       do_read();
     }
 
   private:
     void do_read() {
-      // Raw stack execution requires immediate transformation to stream
-      // Standard approach maps dynamic instance straight to connection
-      // management pipeline
       auto session =
           std::make_shared<Connection>(std::move(socket_), ctx_, server_);
       server_.join(session);
 
-      // Execute mock frame initialization
-      http::request<http::string_body> req;
-      session->run(std::move(req));
+      session->run();
     }
 
     tcp::socket socket_;
@@ -120,28 +113,33 @@ private:
   std::set<std::shared_ptr<Connection>> registry_;
 };
 
-void Connection::run(http::request<http::string_body> req) {
+void Connection::run() {
   auto self = shared_from_this();
   ws_.next_layer().async_handshake(
-      ssl::stream_base::server,
-      [this, self, req](boost::beast::error_code err) {
+      ssl::stream_base::server, [this, self](boost::beast::error_code err) {
         if (!err) {
-          do_ws_accept(req);
+          do_ws_accept();
+        } else {
+          std::cerr << "TLS Handshake failed: " << err.message() << std::endl;
+          server_.leave(shared_from_this());
         }
       });
 }
 
-void Connection::do_ws_accept(http::request<http::string_body> req) {
+void Connection::do_ws_accept() {
   auto self = shared_from_this();
-  ws_.async_accept(req, [this, self](boost::beast::error_code err) {
+  ws_.async_accept([this, self](boost::beast::error_code err) {
     if (!err) {
       do_read();
+    } else {
+      std::cerr << "wc_accept error: " << err.message() << std::endl;
     }
   });
 }
 
 void Connection::do_read() {
   auto self = shared_from_this();
+  std::cout << "connection read" << std::endl;
   ws_.async_read(
       buf_, [this, self](boost::beast::error_code err, size_t bytes_trasfered) {
         if (!err) {
@@ -149,6 +147,8 @@ void Connection::do_read() {
           server_.broadcast(msg, self);
           buf_.consume(bytes_trasfered);
           do_read();
+        } else {
+          std::cerr << "read error: " << err.message() << std::endl;
         }
       });
 }
@@ -182,7 +182,8 @@ int main() {
     tcp::endpoint endpoint{asio::ip::make_address("0.0.0.0"), kDefaultPort};
     ChatServer server(ioc, ctx, endpoint);
 
-    std::cout << "Secure WebSocket Server acting on port 8888...\n";
+    std::cout << "Secure WebSocket Server acting on port " << kDefaultPort
+              << "...\n";
     ioc.run();
   } catch (std::exception const &e) {
     std::cerr << "Fatal Error: " << e.what() << "\n";
