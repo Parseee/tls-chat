@@ -1,37 +1,31 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/debian
 {
-	"name": "tls-chat-x86",
-	"service": "chat",
-	"dockerComposeFile": "compose.yml",
-	"workspaceFolder": "/workspaces/tls-chat",
-	"capAdd": [
-		"SYS_PTRACE"
-	],
-	// "securityOpt": [
-	// 	"seccomp=unconfined"
-	// ],
-	"features": {
-		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {},
-		"ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
-			"plugins": "ssh-agent zsh-autosuggestions"
-		}
-	},
-	// "initializeCommand": "mkdir -p ${localEnv:HOME}/.ccache && cd \"${localWorkspaceFolder}\" && git config --local user.email \"$(git config user.email)\" && git config --local user.name \"$(git config user.name)\"",
-	// "postStartCommand": ".devcontainer/configure.sh",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"ms-vscode.cpptools-extension-pack",
-				"ms-vscode.makefile-tools",
-				"llvm-vs-code-extensions.vscode-clangd",
-				"Gruntfuggly.todo-tree"
-			],
-			"settings": {
-				"terminal.integrated.defaultProfile.linux": "zsh",
-				"clangd.path": "clangd-18"
-			}
-		}
-	},
-	"remoteUser": "root"
+    "name": "tls-chat-x86",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+    "workspaceFolder": "/workspaces/tls-chat",
+    "capAdd": [
+        "SYS_PTRACE"
+    ],
+    "features": {
+        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+            "packages": "build-essential,cmake,libssl-dev,clangd-18,gdb"
+        },
+        "ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
+            "plugins": "ssh-agent zsh-autosuggestions"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools-extension-pack",
+                "ms-vscode.makefile-tools",
+                "llvm-vs-code-extensions.vscode-clangd",
+                "Gruntfuggly.todo-tree"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "clangd.path": "clangd-18"
+            }
+        }
+    },
+    "remoteUser": "root"
 }
