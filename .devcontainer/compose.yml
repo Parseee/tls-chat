@@ -4,8 +4,10 @@ services:
       context: ..
       dockerfile: .devcontainer/Dockerfile
     ports:
-      - "8888:8888"
-      - "8000:8000"
+      - "443:8888"
+      - "80:80"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     restart: always
     platform: linux/amd64
     environment:
