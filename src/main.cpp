@@ -106,20 +106,25 @@ private:
             if (err) {
               return;
             }
-            if (websocket::is_upgrade(req_) && req_.target() == "/ws") {
+
+            boost::beast::string_view target = req_.target();
+
+            if (websocket::is_upgrade(req_) && target == "/ws") {
               auto session =
                   std::make_shared<Connection>(std::move(stream_), server_);
               server_.join(session);
               session->run(std::move(req_));
-            } else if (req_.target() == "/") {
-              send_index();
+            } else if (target == "/" || target == "/index.html") {
+              send_file("static/index.html");
+            } else if (target == "/docs" || target == "/docs.html") {
+              send_file("static/docs.html");
             } else {
               send_not_found();
             }
           });
     }
 
-    void send_index() {
+    void send_file(std::string const &filepath) {
       auto self = shared_from_this();
       auto res = std::make_shared<http::response<http::file_body>>();
       res->version(req_.version());
@@ -128,7 +133,7 @@ private:
       res->set(http::field::content_type, "text/html; charset=utf-8");
 
       boost::beast::error_code err;
-      res->body().open("static/index.html", boost::beast::file_mode::scan, err);
+      res->body().open(filepath.c_str(), boost::beast::file_mode::scan, err);
       if (err) {
         send_not_found();
         return;
