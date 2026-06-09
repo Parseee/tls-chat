@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Multiplexed WebSocket Chat Server - Documentation</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #fdfdfd;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        h1, h2, h3 { color: #2c3e50; margin-top: 1.5rem; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+        pre { background-color: #f8f9fa; padding: 1rem; border-radius: 6px; overflow-x: auto; border: 1px solid #e9ecef; }
+        code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9em; background: #f1f3f5; padding: 0.2rem 0.4rem; border-radius: 4px; color: #d63384; }
+        pre code { background: none; padding: 0; color: inherit; }
+        .tech-stack { display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap; }
+        .badge { background: #e9ecef; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: #495057; }
+        .details-box { background-color: #e3f2fd; border-left: 4px solid #0d6efd; padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 6px 6px 0; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Secure Multiplexed WebSocket Chat Server</h1>
+    
+    <p>A high-performance, secure chat server written in C++20. It beautifully multiplexes HTTPS and Secure WebSockets (WSS) over a single port using a TLS-first approach. It is purely web-socket based and does not use any database to store conversations.</p>
+
+    <div class="tech-stack">
+        <span class="badge">C++20</span>
+        <span class="badge">Boost.Asio</span>
+        <span class="badge">Boost.Beast</span>
+        <span class="badge">OpenSSL</span>
+        <span class="badge">Docker</span>
+    </div>
+
+    <h2>Features & Architecture</h2>
+    <ul>
+        <li><strong>TLS-First Multiplexing:</strong> Utilizes Boost.Asio, Boost.Beast, and OpenSSL. All incoming TCP connections immediately undergo a TLS handshake before any protocol-specific logic executes.</li>
+        <li><strong>HTTP Static Hosting:</strong> Automatically identifies standard HTTPS requests targeting <code>/</code> and gracefully serves the frontend web client (<code>static/index.html</code>) using short-lived HTTP responses.</li>
+        <li><strong>WebSocket Upgrades:</strong> Routes requests directed to <code>/ws</code> into a persistent, stateful WebSocket connection for real-time, full-duplex messaging.</li>
+        <li><strong>Broadcast Architecture:</strong> Messages sent from one client are asynchronously and safely broadcasted to all other active connections. New users will receive only new messages (no historical state is retained).</li>
+        <li><strong>Container-Ready:</strong> Features a multi-stage Docker build tailored for both Devcontainer development and production-like deployment.</li>
+    </ul>
+
+    <div class="details-box">
+        <h3>Under the Hood (Core Components)</h3>
+        <p><strong><code>HttpDetector</code>:</strong> The traffic controller. It takes ownership of the accepted TCP socket, completes the SSL handshake, reads the initial HTTP headers, and decides the fate of the connection. If the target is <code>/ws</code> and requests an upgrade, it delegates the stream to a <code>Connection</code>. Otherwise, it serves static files and shuts down.</p>
+        <p><strong><code>Connection</code>:</strong> Encapsulates the active stateful WebSocket stream. It maintains an asynchronous read loop and uses a queue-based write system to serialize outgoing frames safely, preventing overlapping write errors.</p>
+        <p><strong><code>ChatServer</code>:</strong> The central registry. It holds weak references to active connections and provides thread-safe broadcasting routines to fan out messages efficiently across the network.</p>
+    </div>
+
+    <h2>Prerequisites</h2>
+    <ul>
+        <li>Docker & Docker Compose</li>
+        <li>OpenSSL (to generate local TLS certificates: <code>cert.pem</code> and <code>key.pem</code>)</li>
+    </ul>
+
+    <h2>Setup & Execution</h2>
+
+    <h3>1. Build and Run</h3>
+    <p>Use the provided Docker Compose configuration to build the image and start the service in the background. The build leverages a multi-stage Dockerfile to keep the final image extremely lightweight.</p>
+    <pre><code>docker compose -f .devcontainer/compose.yml up -d --build</code></pre>
+
+    <h3>2. Usage</h3>
+    <ol>
+        <li>Ensure you have your TLS certificates ready (<code>cert.pem</code> and <code>key.pem</code>) in the deployment root.</li>
+        <li>Open your web browser and navigate to the desired web page (in a local scenario, usually <code>https://localhost:8888</code>, or hardcoded to your specific domain).</li>
+        <li>Since you are using a self-signed certificate (if tested locally), bypass the browser's security warning.</li>
+        <li>The server will serve the chat interface. Type a message and hit <strong>Send</strong> to broadcast it to all connected clients!</li>
+    </ol>
+
+</div>
+
+</body>
+</html>
