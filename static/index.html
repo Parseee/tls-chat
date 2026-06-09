@@ -39,13 +39,14 @@
 </head>
 
 <body>
-    <h1>/b</h1>
+    <h1>/b - <a href="/docs.html" style="font-size: 0.5em; text-decoration: none; color: blue;">View Documentation</a></h1>
     <div id="chat"></div>
     <input type="text" id="input" autofocus>
     <button id="send" onclick="send()">Send</button>
 
     <script>
-        const ws = new WebSocket("wss://194.226.20.15/ws");
+        // Dynamically connect to whichever host/IP the browser used to load the page
+        const ws = new WebSocket(`wss://${window.location.host}/ws`);
         const chat = document.getElementById('chat');
         const input = document.getElementById('input');
 
