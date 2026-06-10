@@ -194,6 +194,15 @@ void Connection::do_read() {
       buf_, [this, self](boost::beast::error_code err, size_t bytes_trasfered) {
         if (!err) {
           std::string msg = boost::beast::buffers_to_string(buf_.data());
+          
+          if (msg.find("/ip") != std::string::npos) {
+            try {
+              std::string ip = ws_.next_layer().next_layer().remote_endpoint().address().to_string();
+              msg = "[IP: " + ip + "] " + msg;
+            } catch (const std::exception&) {
+            }
+          }
+
           server_.broadcast(msg, self);
           buf_.consume(bytes_trasfered);
           do_read();
